@@ -39,7 +39,7 @@ select:focus{outline:none;border-color:var(--accent);}
 .card.collapsible > h3::before{content:'▾'; font-size:10px; color:var(--dim);}
 .card.collapsible.collapsed > h3::before{content:'▸';}
 .card.collapsible.collapsed > *:not(h3){display:none;}
-.card.resizable{resize:both; overflow:auto; min-width:240px; min-height:100px;}
+.card.resizable{resize:both; overflow:auto; min-width:240px; min-height:100px; max-width:100%;}
 .barwrap{background:#0b0812; border:1px solid var(--border); border-radius:4px; height:16px; overflow:hidden; position:relative; margin:4px 0;}
 .bar{height:100%; transition:width .25s;}
 .bar.hp{background:linear-gradient(90deg,#8f1f1f,var(--hp));}
@@ -131,7 +131,15 @@ footer{text-align:center; color:var(--dim); font-size:13px; padding:14px 0;}
 .mapNode.gather{border-color:#2f6a3f;}
 .mapNode.recruit{border-color:#c9a12e;}
 .mapNode.combat.active,.mapNode.gather.active{border-color:var(--gold);}
+.mapNode.dragover{border-color:var(--green); box-shadow:0 0 8px rgba(79,191,91,.6); background:rgba(79,191,91,.12);}
 .mapNodeLabel{font-size:9px; line-height:1.25;}
+[data-dragunit]{cursor:grab;}
+.formrows{display:flex; flex-direction:column; gap:8px;}
+.formrow{border:1px dashed var(--border); border-radius:6px; padding:8px; transition:border-color .15s,background .15s;}
+.formrow.dragover{border-color:var(--green); background:rgba(79,191,91,.08);}
+.formrow-label{color:var(--dim); letter-spacing:1px; margin-bottom:6px;}
+.formrow-chips{display:flex; flex-direction:column; gap:4px; margin-bottom:6px;}
+.formrow-hint{opacity:.5; padding:4px 0;}
 .monstergroup{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; min-width:150px;}
 .equipRow{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px; border:1px solid var(--border); border-radius:4px; margin-bottom:4px; cursor:pointer;}
 .equipRow:hover{border-color:var(--green);}
@@ -152,7 +160,7 @@ footer{text-align:center; color:var(--dim); font-size:13px; padding:14px 0;}
   </header>
   <div class="tabs" id="tabs"></div>
   <div id="tabContent"></div>
-  <footer>Autosaves every 4s • flexible panels: drag corners to resize, click headers to collapse • units deploy to ONE node only</footer>
+  <footer>Autosaves every 4s • flexible panels: drag corners to resize, click headers to collapse • drag a roster unit onto a map node or formation row to deploy • units deploy to ONE node only</footer>
 </div>
 <div id="toastHolder"></div>
 <div id="craftModal"><div>
@@ -546,13 +554,13 @@ function renderPicker(nodeId, row){
 function renderNodeFormation(nodeId){
   const z=getZoneById(nodeId); if(!z) return '';
   const node=S.deployedNodes[nodeId]; if(!node) return '';
-  const assigned=[...node.front, ...node.back];
-  const cnt=assigned.length;
+  const cnt=node.front.length+node.back.length;
   let body;
   if(unitPicker && unitPicker.nodeId===nodeId){
     body=renderPicker(nodeId, unitPicker.row);
   } else {
-    body=`<div class="partylist">`+assigned.map(k=>{ const e=charEntity(k); if(!e) return ''; const r=committedRow(k,nodeId); return `<div class="rowitem"><div>${spriteHTML(charSprite(k),3)}</div><div style="flex:1">${charName(k)} (${r==='front'?'F':'B'})</div><button class="tiny secondary" data-noderow="${nodeId}:${k}:bench">Remove</button></div>`; }).join('')+`</div><div style="margin-top:6px;display:flex;gap:6px;"><button class="tiny" data-openpicker="${nodeId}:front">[+] Front</button><button class="tiny" data-openpicker="${nodeId}:back">[+] Back</button></div>`;
+    const rowHtml=(row,label)=>{ const keys=row==='front'?node.front:node.back; const chips=keys.map(k=>{ const e=charEntity(k); if(!e) return ''; return `<div class="rowitem" draggable="true" data-dragunit="${k}"><div>${spriteHTML(charSprite(k),3)}</div><div style="flex:1">${charName(k)}</div><button class="tiny secondary" data-noderow="${nodeId}:${k}:bench">Remove</button></div>`; }).join(''); return `<div class="formrow" data-dropzone="${nodeId}:${row}"><div class="small pixel formrow-label">${label}</div><div class="formrow-chips">${chips||'<div class="small formrow-hint">Drag a unit here</div>'}</div><button class="tiny" data-openpicker="${nodeId}:${row}">[+]</button></div>`; };
+    body=`<div class="formrows">${rowHtml('front','FRONT ROW')}${rowHtml('back','BACK ROW')}</div>`;
   }
   return `<div class="card collapsible resizable"><h3>${z.name} — Formation (${cnt}/${NODE_CAP})</h3>${body}</div>`;
 }
@@ -565,7 +573,8 @@ function renderGatherFormation(nodeId){
   if(unitPicker && unitPicker.nodeId===nodeId){
     body=renderPicker(nodeId, null);
   } else {
-    body=`<div class="partylist">`+assigned.map(k=>{ const e=charEntity(k); if(!e) return ''; return `<div class="rowitem"><div>${spriteHTML(charSprite(k),3)}</div><div style="flex:1">${charName(k)} 🌿</div><button class="tiny secondary" data-noderow="${nodeId}:${k}:bench">Remove</button></div>`; }).join('')+`</div><button class="tiny" data-openpicker="${nodeId}:gather" style="margin-top:6px;">[+] Add Gatherer</button>`;
+    const chips=assigned.map(k=>{ const e=charEntity(k); if(!e) return ''; return `<div class="rowitem" draggable="true" data-dragunit="${k}"><div>${spriteHTML(charSprite(k),3)}</div><div style="flex:1">${charName(k)} 🌿</div><button class="tiny secondary" data-noderow="${nodeId}:${k}:bench">Remove</button></div>`; }).join('');
+    body=`<div class="formrow" data-dropzone="${nodeId}:gather"><div class="small pixel formrow-label">GATHERERS</div><div class="formrow-chips">${chips||'<div class="small formrow-hint">Drag a unit here</div>'}</div><button class="tiny" data-openpicker="${nodeId}:gather">[+]</button></div>`;
   }
   return `<div class="card collapsible resizable"><h3>${z.name} — Gatherers (${cnt})</h3>${body}</div>`;
 }
@@ -580,7 +589,7 @@ function renderDeployedNodes(){
     return `<div class="rowitem"><div style="flex:1">${tl} ${z?z.name:'Unknown'} (${cnt})</div><button class="tiny secondary" data-removenode="${id}">Remove</button></div>`;
   }).join('')+ids.map(id=>{ const z=getZoneById(id); return (z&&z.type==='gather')? renderGatherFormation(id): renderNodeFormation(id); }).join('')+`</div>`;
 }
-function renderZones(){ const all=['player',...S.party.map(m=>m.id)]; const gp=all.map(c=>`<div class="rowitem"><div style="flex:1">${spriteHTML(charSprite(c),3)} ${charName(c)} ${S.activeRoster.includes(c)?'':' <span class="small" style="color:var(--dim)">(reserve)</span>'}</div><button class="tiny ${S.activeRoster.includes(c)?'':'secondary'}" data-toggle-active="${c}">${S.activeRoster.includes(c)?'Active ✓':'Reserve'}</button></div>`).join(''); return `<div class="layout"><div>${renderWorldMap()}${renderZonePreviewPanel()}<div class="card collapsible"><h3>Active Roster</h3><div class="partylist">${gp}</div></div>${renderDeployedNodes()}</div><div id="stageCol"></div></div>`; }
+function renderZones(){ const all=['player',...S.party.map(m=>m.id)]; const gp=all.map(c=>{ const active=S.activeRoster.includes(c); return `<div class="rowitem" ${active?`draggable="true" data-dragunit="${c}" title="Drag onto a map node or formation row"`:''}><div style="flex:1">${spriteHTML(charSprite(c),3)} ${charName(c)} ${active?'':' <span class="small" style="color:var(--dim)">(reserve)</span>'}</div><button class="tiny ${active?'':'secondary'}" data-toggle-active="${c}">${active?'Active ✓':'Reserve'}</button></div>`; }).join(''); return `<div class="layout"><div>${renderWorldMap()}${renderZonePreviewPanel()}<div class="card collapsible"><h3>Active Roster</h3><p class="small">Drag a unit onto a map node or a formation row to deploy.</p><div class="partylist">${gp}</div></div>${renderDeployedNodes()}</div><div id="stageCol"></div></div>`; }
 function renderInventory(){ invTab=Math.min(invTab, invTabCount()-1); const tc=invTabCount(); const tabs=Array.from({length:tc},(_,i)=>`<div class="subtab ${i===invTab?'active':''}" data-invtab="${i}">Tab ${i+1}</div>`).join(''); const canBuy=S.invGrid.length<MAX_SLOTS; const purchases=Math.max(0,(S.invGrid.length-BASE_SLOTS)/10); const buyCost=Math.floor(50*Math.pow(2,purchases)); const buyBtn=canBuy?`<button class="tiny" data-buyinv="1">Buy 10 Slots (${buyCost}g)</button>`:'<span class="small">Max capacity reached</span>'; return `<div class="card"><h3>Shared Inventory (${S.invGrid.length}/${MAX_SLOTS} slots)</h3><div class="subtabs">${tabs}</div><p class="small">Drag to move • materials stack 99 • click book/tome/scroll to use on selected char (or you). Drag onto Sell Bin to sell. Locked slots are greyed until bought.</p><div class="invgrid" id="invGrid" style="max-width:620px;"></div><div style="margin-top:8px;display:flex;gap:8px;align-items:center;">${buyBtn}</div></div>${renderSellBin()}${renderAutoSell()}`; }
 let selectedCell=null; let dragInProgress=false;
 function renderInventoryGrid(){ const grid=document.getElementById('invGrid'); if(!grid) return; grid.innerHTML=''; const start=invTab*TAB_SIZE, end=start+TAB_SIZE; for(let abs=start; abs<end; abs++){ const sl=document.createElement('div'); sl.className='invslot'; if(abs>=S.invGrid.length){ sl.style.opacity=.25; sl.style.borderStyle='dashed'; sl.style.cursor='not-allowed'; sl.innerHTML='<div class="small">locked</div>'; grid.appendChild(sl); continue; } const cell=S.invGrid[abs]; const i=abs; sl.draggable=true; sl.dataset.idx=i; if(!cell) sl.style.opacity=.4; else if(cell.kind==='mat'){ const it=ITEMS[cell.id]; if(!it) sl.style.opacity=.3; else { sl.innerHTML=`<div class="ico">${spriteHTML(it.icon,3)}</div>${it.name}<br><b>${cell.qty}</b>`; if(it.book||it.use||it.tome||it.special) sl.style.borderColor='var(--gold)'; } } else { const inst=S.gearInstances[cell.uid]; if(!inst) sl.style.opacity=.3; else { const lab=gearInstanceLabel(inst); sl.style.borderColor=lab.color; sl.innerHTML=`<div class="ico">${itemIcon(inst.uid,3)}</div><div style="color:${lab.color}">${rarityInfo(inst.rarity).name}</div>${ITEMS[inst.baseId].name}<div class="small">${Object.entries(inst.bonus).map(([k,v])=>`+${v}${k}`).join(' ')}</div>`; } } sl.addEventListener('dragstart',e=>{ dragInProgress=true; e.dataTransfer.setData('text/plain',i); }); sl.addEventListener('dragend',()=>dragInProgress=false); sl.addEventListener('dragover',e=>e.preventDefault()); sl.addEventListener('drop',e=>{ e.preventDefault(); handleGridDrop(parseInt(e.dataTransfer.getData('text/plain')),i); }); sl.addEventListener('click',()=>handleGridClick(i)); grid.appendChild(sl); } }
@@ -681,6 +690,9 @@ function bindEvents(){
   const pb=document.getElementById('btnPause'); if(pb){ pb.textContent=autosaveSuspended?'▶ Resume Save':'⏸ Pause Save'; pb.onclick=()=>{ autosaveSuspended=!autosaveSuspended; document.getElementById('saveStatus').textContent=autosaveSuspended?'Autosave: paused':'Autosaved '+new Date(lastAutosave).toLocaleTimeString(); renderAll(); }; }
   document.querySelectorAll('.card.collapsible > h3').forEach(h=>{ if(!h.dataset.colBound){ h.dataset.colBound='1'; h.addEventListener('click',e=>{ if(e.target.tagName==='BUTTON'||e.target.closest('button')) return; h.parentElement.classList.toggle('collapsed'); }); } });
   document.querySelectorAll('[data-preview-zone]').forEach(el=>el.onclick=()=>{ if(mapDragState.moved) return; previewZoneId=el.dataset.previewZone; renderAll(); });
+  document.querySelectorAll('[data-dragunit]').forEach(el=>{ el.addEventListener('dragstart',e=>{ e.dataTransfer.setData('text/plain',el.dataset.dragunit); e.dataTransfer.effectAllowed='move'; }); });
+  document.querySelectorAll('[data-preview-zone].mapNode').forEach(el=>{ el.addEventListener('dragover',e=>{ e.preventDefault(); el.classList.add('dragover'); }); el.addEventListener('dragleave',()=>el.classList.remove('dragover')); el.addEventListener('drop',e=>{ e.preventDefault(); el.classList.remove('dragover'); const key=e.dataTransfer.getData('text/plain'); if(!key) return; setNodeRow(el.dataset.previewZone,key,'front'); }); });
+  document.querySelectorAll('[data-dropzone]').forEach(el=>{ el.addEventListener('dragover',e=>{ e.preventDefault(); el.classList.add('dragover'); }); el.addEventListener('dragleave',()=>el.classList.remove('dragover')); el.addEventListener('drop',e=>{ e.preventDefault(); el.classList.remove('dragover'); const key=e.dataTransfer.getData('text/plain'); if(!key) return; const [nid,row]=el.dataset.dropzone.split(':'); setNodeRow(nid,key,row==='gather'?'front':row); }); });
   const applySeedBtn=document.querySelector('[data-map-applyseed]'); if(applySeedBtn) applySeedBtn.onclick=()=>{ const raw=document.getElementById('seedInput').value; showConfirm('Regenerate world with seed '+raw+'? This FULLY RESETS all progress (gold, gear, party, levels) and overwrites your save.', ()=>hardReset(seedFromString(raw))); };
   const randSeedBtn=document.querySelector('[data-map-randseed]'); if(randSeedBtn) randSeedBtn.onclick=()=>{ showConfirm('Generate a brand-new random world? This FULLY RESETS all progress and overwrites your save.', ()=>hardReset(Math.floor(Math.random()*4294967295))); };
   const recenterBtn=document.querySelector('[data-map-recenter]'); if(recenterBtn) recenterBtn.onclick=()=>centerMapOnOrigin(document.getElementById('worldMapWrap'));
