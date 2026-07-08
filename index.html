@@ -703,14 +703,14 @@ function rankIdxForFloorZone(floor,lx,ly){
 function recruitStableRank(id){ if(id && id.startsWith('prec_')){ const t=parseInt(id.slice(5)); return Math.min(RANKS.length-1, Math.floor((t-1)/4)); } return 0; }
 const SAVE_KEY='emberRustSave_v13', SLOT_PREFIX='emberRustSlot_', NUM_SLOTS=5, TICK_MS=1000, PARTY_CAP=12, NODE_CAP=6, BASE_SLOTS=50, TAB_SIZE=50, MAX_TABS=5, MAX_SLOTS=250, MAX_STACK=99999;
 function memberPool(id){ return getAllRecruits().find(p=>p.id===id); }
-function freshPlayerState(){ return {level:1,xp:0,statPts:0,skillPts:0,class:'Adventurer',base:{atk:5,def:3,mag:2,luck:2,vit:20},allocated:{atk:0,def:0,mag:0,luck:0,vit:0},equip:{weapon:null,armor:null,accessory:null},hp:20,maxHp:20,mp:0,maxMp:0,shield:0,downed:0,skills:{},specialSkills:{},essence:0,prestigeRanks:{},branchLevels:{Combat:0,Magic:0,Gathering:0},rebirths:0,berserkCd:0,regrowthCd:0,prestigeShop:{}}; }
+function freshPlayerState(){ return {level:1,xp:0,statPts:0,skillPts:0,class:'Adventurer',base:{atk:5,def:3,mag:2,luck:2,vit:20},allocated:{atk:0,def:0,mag:0,luck:0,vit:0},equip:{weapon:null,armor:null,accessory:null},hp:null,maxHp:null,mp:null,maxMp:null,shield:0,downed:0,skills:{},specialSkills:{},essence:0,prestigeRanks:{},branchLevels:{Combat:0,Magic:0,Gathering:0},rebirths:0,berserkCd:0,regrowthCd:0,prestigeShop:{}}; }
 function freshMemberState(poolId, rankIdx){
   const pool=memberPool(poolId);
   const cb=classBase(pool.class);
   return {id:poolId, rank:rankIdx||0, level:1, xp:0, statPts:0, skillPts:0, class:pool.class,
     base:{atk:pool.base.atk, def:pool.base.def, mag:cb.mag, vit:cb.vit, luck:2},
     allocated:{atk:0,def:0,mag:0,luck:0,vit:0}, equip:{weapon:null,armor:null,accessory:null},
-    hp:0, maxHp:0, mp:0, maxMp:0, shield:0, downed:0, skills:{}, specialSkills:{}, essence:0, prestigeRanks:{}, branchLevels:{Combat:0,Magic:0,Gathering:0}, rebirths:0, berserkCd:0, regrowthCd:0, prestigeShop:{}, customName:null};
+    hp:null, maxHp:null, mp:null, maxMp:null, shield:0, downed:0, skills:{}, specialSkills:{}, essence:0, prestigeRanks:{}, branchLevels:{Combat:0,Magic:0,Gathering:0}, rebirths:0, berserkCd:0, regrowthCd:0, prestigeShop:{}, customName:null};
 }
 function freshState(){ return normalizeState({gold:20,gearInstances:{},player:freshPlayerState(),party:[],activeRoster:['player'],deployedNodes:{},clearedZones:{},mapSeed:Math.floor(Math.random()*4294967295),recruitUnlocked:PARTY_POOL.length,recruitProcTier:0,procRecruits:{},invGrid:new Array(BASE_SLOTS).fill(null),gatherProgress:0,lifetimeGold:0,lastTick:Date.now(),log:[],autoSellEnabled:true,autoSell:new Array(5).fill(null),unlockedRecipes:[],recruitedNodes:{},currentFloor:1,unlockedFloors:1,clearedFloors:{},floorForced:{},markedRecipes:{},markedGear:{}}); }
 function normalizeState(st){ st=st||{}; if(!st.gearInstances) st.gearInstances={}; if(st.inventory&&!st.invGrid) migrateInv(st); if(!st.invGrid||!st.invGrid.length) st.invGrid=new Array(BASE_SLOTS).fill(null); if(st.gatherer!==undefined) delete st.gatherer; if(!st.clearedZones) st.clearedZones={}; if(st.mapSeed===undefined) st.mapSeed=Math.floor(Math.random()*4294967295); if(!st.recruitUnlocked) st.recruitUnlocked=PARTY_POOL.length; if(!st.recruitProcTier) st.recruitProcTier=0; if(!st.procRecruits) st.procRecruits={}; if(!st.autoSell) st.autoSell=new Array(5).fill(null); st.autoSell=st.autoSell.map(r=>r?{...r,enabled:r.enabled!==false}:null); if(st.autoSellEnabled===undefined) st.autoSellEnabled=true; if(!st.recruitedNodes) st.recruitedNodes={}; if(!st.deployedNodes) st.deployedNodes={}; if(!st.unlockedRecipes) st.unlockedRecipes=[]; if(!st.markedRecipes) st.markedRecipes={}; if(!st.markedGear) st.markedGear={}; if(!st.currentFloor) st.currentFloor=1; if(!st.unlockedFloors) st.unlockedFloors=1; if(!st.clearedFloors) st.clearedFloors={}; if(!st.floorForced) st.floorForced={};
@@ -798,8 +798,9 @@ function derivePlayer(){
   const maxHp=Math.round(vit*3)+g.hp;
   const maxMp=Math.round(10+mag*2);
   PD={atk:Math.round(atk),def:Math.round(def),mag:Math.round(mag),luck:Math.round(luck+g.luck?luck:luck),maxHp,lifesteal:(sp.lifesteal||0)+g.lifesteal,critChance:g.critChance, critDmg:0, xpPct, gatherPct:sk.gatherPct+bl.Gathering*3+pr.gatherPct, lootPctOwn:sk.lootPct+pr.lootPct+bl.Gathering*1, goldPctOwn:pr.goldPct, idlePct:pr.idlePct, critPctOwn:pr.critPct, maxMp};
-  if(p.maxHp!==maxHp){ p.maxHp=maxHp; if(!p.hp) p.hp=maxHp; }
-  p.hp=Math.min(p.hp,p.maxHp);
+  if(p.maxHp!==maxHp){ p.maxHp=maxHp; }
+  if(p.hp===null||p.hp===undefined||typeof p.hp!=='number'||isNaN(p.hp)||p.hp>p.maxHp) p.hp=p.maxHp;
+  p.hp=Math.min(Math.max(p.hp,0),p.maxHp);
   p.maxMp=maxMp;
   if(typeof p.mp!=='number'||isNaN(p.mp)||p.mp>maxMp) p.mp=maxMp;
 }
@@ -826,7 +827,7 @@ function deriveMember(m){
   const maxMp=Math.round(10+mag*2);
   const d={atk:Math.round(atk),def:Math.round(def),mag:Math.round(mag),maxHp,luck:(g.luck||0)+sk.luckFlat+sp.luckFlat, lifesteal:(sp.lifesteal||0)+g.lifesteal, critChance:g.critChance, critDmg:0, xpPct, gatherPct:sk.gatherPct+bl.Gathering*3+pr.gatherPct, lootPctOwn:sk.lootPct+pr.lootPct+bl.Gathering*1, goldPctOwn:pr.goldPct, idlePct:pr.idlePct, critPctOwn:pr.critPct, maxMp};
   if(m.maxHp!==maxHp){ m.maxHp=maxHp; }
-  if(!m.hp||m.hp>m.maxHp) m.hp=m.maxHp;
+  if(m.hp===null||m.hp===undefined||typeof m.hp!=='number'||isNaN(m.hp)||m.hp>m.maxHp) m.hp=m.maxHp;
   m.maxMp=maxMp;
   if(typeof m.mp!=='number'||isNaN(m.mp)||m.mp>maxMp) m.mp=maxMp;
   return d;
@@ -842,7 +843,9 @@ function enhCost(inst){
   const matId={common:'enh_stone',rare:'enh_crystal',epic:'enh_sigil',legendary:'enh_divine',divine:'enh_divine'}[inst.rarity]||'enh_stone';
   return {gold,matId,matNeeded,cap};
 }
-function enhSuccessChance(inst,e){ const eh=inst.enh||0; const reduc=(prestigeBonusSum(e.prestigeRanks).enhFail||0); return Math.max(5, 95 - eh*6 - reduc*3); }
+function enhSuccessChance(inst,e){
+  const eh=inst.enh||0; const reduc=(prestigeBonusSum(e.prestigeRanks).enhFail||0); return Math.max(5, 95 - eh*6 - reduc*3);
+}
 function enhanceGear(uid,e){
   const inst=S.gearInstances[uid]; if(!inst) return;
   const eh=inst.enh||0; const cap=enhCap(inst.rarity);
@@ -874,7 +877,7 @@ function charEntity(k){ return k==='player'?S.player:S.party.find(m=>m.id===k); 
 function charName(k){ if(k==='player') return 'You'; const e=S.party.find(m=>m.id===k); return e&&e.customName? e.customName : (memberPool(k)?memberPool(k).name:k); }
 function charSprite(k){ return k==='player'?'player':(memberPool(k)?memberPool(k).sprite:'player'); }
 function charDerived(k){ return k==='player'?PD:(MEMBER_DERIVED[k]||{atk:0,def:0,maxHp:0}); }
-function nodeCombatants(nodeId){ const node=S.deployedNodes[nodeId]; if(!node) return []; const list=[]; const all=[{key:'player',isP:true,en:S.player,sp:'player',nm:'You',d:PD}]; S.party.forEach(m=>all.push({key:m.id,isP:false,en:m,sp:memberPool(m.id).sprite,nm:memberPool(m.id).name,d:MEMBER_DERIVED[m.id]})); all.forEach(c=>{ if(!charEntity(c.key)) return; const row=committedRow(c.key,nodeId); if(row==='bench') return; list.push({key:c.key,nm:c.nm,sp:c.sp,isP:c.isP,en:c.en,row,get hp(){return c.en.hp;},set hp(v){c.en.hp=v;},get maxHp(){return c.en.maxHp;},get mp(){return c.en.mp;},set mp(v){c.en.mp=v;},get maxMp(){return c.en.maxMp;},get downed(){return c.en.downed||0;},set downed(v){c.en.downed=v;},atk:c.d.atk,def:c.d.def,mag:(c.d.mag||0),luck:(c.d.luck||0),lifesteal:(c.d.lifesteal||0),critChance:(c.d.critChance||0),critDmg:(c.d.critDmg||0),shield:0}); }); return list; }
+function nodeCombatants(nodeId){ const node=S.deployedNodes[nodeId]; if(!node) return []; const list=[]; const all=[{key:'player',isP:true,en:S.player,sp:'player',nm:'You',d:PD}]; S.party.forEach(m=>all.push({key:m.id,isP:false,en:m,sp:memberPool(m.id).sprite,nm:memberPool(m.id).name,d:MEMBER_DERIVED[m.id]})); all.forEach(c=>{ if(!charEntity(c.key)) return; const row=committedRow(c.key,nodeId); if(row==='bench') return; list.push({key:c.key,nm:c.nm,sp:c.sp,isP:c.isP,en:c.en,row,d:c.d,get hp(){return c.en.hp;},set hp(v){c.en.hp=v;},get maxHp(){return c.en.maxHp;},get mp(){return c.en.mp;},set mp(v){c.en.mp=v;},get maxMp(){return c.en.maxMp;},get downed(){return c.en.downed||0;},set downed(v){c.en.downed=v;},atk:c.d.atk,def:c.d.def,mag:(c.d.mag||0),luck:(c.d.luck||0),lifesteal:(c.d.lifesteal||0),critChance:(c.d.critChance||0),critDmg:(c.d.critDmg||0),shield:0}); }); return list; }
 function setNodeRow(nodeId,key,row){ if(!charEntity(key)) return; if(!S.deployedNodes[nodeId]){ const z=getZoneById(nodeId); if(!z||!isPlayableZone(z)){ toast('Zone locked'); return; } S.deployedNodes[nodeId]={type:z.type,front:[],back:[],monsterGroup:[],gatherProgress:0}; } const n=S.deployedNodes[nodeId]; n.front=n.front.filter(x=>x!==key); n.back=n.back.filter(x=>x!==key); if(row==='bench'){ removeFromAllNodes(key); renderAll(); return; } const cnt=n.front.length+n.back.length; if(cnt>=NODE_CAP){ toast('Node cap '+NODE_CAP); renderAll(); return; } removeFromAllNodes(key); if(row==='front') n.front.push(key); else if(row==='back') n.back.push(key); renderAll(); }
 function ensureMonsterGroupNode(nodeId,z){ const n=S.deployedNodes[nodeId]; if(!n.monsterGroup) n.monsterGroup=[]; if(n.monsterGroup.length===0){ const cmin=z.monster.countMin||1, cmax=z.monster.countMax||cmin; const cnt=cmin+Math.floor(Math.random()*(cmax-cmin+1)); for(let i=0;i<cnt;i++) n.monsterGroup.push({hp:z.monster.hp,maxHp:z.monster.hp,rewarded:false}); } }
 function rollLoot(list,quiet){ list.forEach(e=>{ let ch=e.chance*(1+SHARED.lootPct/100)*(1+(PD.luck||0)*0.01); if(Math.random()<ch){ const it=ITEMS[e.id]; if(it&&it.slot){ const inst=createGearInstance(e.id); if(checkAutoSell(inst)){ if(!quiet) log(`Auto-sold ${it.name}`); } else { gridAddGear(inst.uid); if(!quiet) log(`Found ${rarityInfo(inst.rarity).name} ${it.name}!`); } } else gridAddMat(e.id,1); } }); }
@@ -900,8 +903,9 @@ function chooseActiveSkill(c, node){
     dmg.sort((a,b)=>skillDmg(b,c)-skillDmg(a,c));
     return dmg[0];
   }
-  const other = aff.find(id=>ACTIVE_SKILLS[id].type!=='damage');
-  return other||null;
+  const buff = aff.find(id=>ACTIVE_SKILLS[id].type==='buff');
+  if(buff) return buff;
+  return null;
 }
 function castActiveSkill(c, id, nodeId, z, ev, quiet){
   const sk=ACTIVE_SKILLS[id];
@@ -932,21 +936,41 @@ function castActiveSkill(c, id, nodeId, z, ev, quiet){
     if(!quiet) log(`🛡 ${c.nm} used ${sk.name}!`);
   }
 }
-function runActiveSkills(nodeId, z, ev, quiet){
-  const node=S.deployedNodes[nodeId]; if(!node) return;
-  const cs=nodeCombatants(nodeId);
-  cs.forEach(c=>{
-    if(c.downed>0||c.hp<=0) return;
-    const skillId=chooseActiveSkill(c, node);
-    if(skillId) castActiveSkill(c, skillId, nodeId, z, ev, quiet);
-  });
-}
-/* =========================================== */
 function tickNode(nodeId,quiet,ev){ const z=getZoneById(nodeId); if(!z||z.type!=='combat') return; const node=S.deployedNodes[nodeId]; if(!node) return; ensureMonsterGroupNode(nodeId,z); const cs=nodeCombatants(nodeId); const aliveMonsters=()=>node.monsterGroup.filter(m=>m.hp>0);
   cs.forEach(c=>{ if(c.downed>0||c.hp<=0) return; c.en.mp=Math.min(c.en.maxMp||0,(c.en.mp||0)+mpRegen(c)); });
-  cs.forEach(c=>{ if(c.downed>0||c.hp<=0) return; const targets=aliveMonsters(); if(!targets.length) return; const t=targets[Math.floor(Math.random()*targets.length)]; const idx=node.monsterGroup.indexOf(t); let dmg=Math.max(1,c.atk-z.monster.def); if(c.critChance && Math.random()*100 < c.critChance){ dmg=Math.round(dmg*(1+(c.critDmg||0)/100)); } t.hp-=dmg; if(c.lifesteal>0){ c.en.hp=Math.min(c.en.maxHp,c.en.hp+Math.round(dmg*c.lifesteal/100)); } if(ev) ev.hits.push({key:c.key,dmg,monsterIdx:idx,nodeId});
-    if(c.en.skills&&c.en.skills['s_berserk']){ c.en.berserkCd=(c.en.berserkCd||0)-1; if(c.en.berserkCd<=0){ const bt=aliveMonsters(); if(bt.length){ const bm=bt[Math.floor(Math.random()*bt.length)]; const bidx=node.monsterGroup.indexOf(bm); const b=Math.round(c.atk*1.5); bm.hp-=b; if(c.lifesteal>0) c.en.hp=Math.min(c.en.maxHp,c.en.hp+Math.round(b*c.lifesteal/100)); c.en.berserkCd=8; if(ev) ev.hits.push({key:c.key,dmg:b,monsterIdx:bidx,nodeId}); if(!quiet) log(`⚡ ${c.nm} Berserk! +${b}`); } } } });
-  runActiveSkills(nodeId,z,ev,quiet);
+  cs.forEach(c=>{
+    if(c.downed>0||c.hp<=0) return;
+    const targets=aliveMonsters();
+    if(!targets.length) return;
+    const skillId=chooseActiveSkill(c, node);
+    if(skillId){
+      castActiveSkill(c, skillId, nodeId, z, ev, quiet);
+    } else {
+      const t=targets[Math.floor(Math.random()*targets.length)];
+      const idx=node.monsterGroup.indexOf(t);
+      let dmg=Math.max(1,c.atk-z.monster.def);
+      if(c.critChance && Math.random()*100 < c.critChance){ dmg=Math.round(dmg*(1+(c.critDmg||0)/100)); }
+      t.hp-=dmg;
+      if(c.lifesteal>0){ c.en.hp=Math.min(c.en.maxHp,c.en.hp+Math.round(dmg*c.lifesteal/100)); }
+      if(ev) ev.hits.push({key:c.key,dmg,monsterIdx:idx,nodeId});
+      if(c.en.skills&&c.en.skills['s_berserk']){
+        c.en.berserkCd=(c.en.berserkCd||0)-1;
+        if(c.en.berserkCd<=0){
+          const bt=aliveMonsters();
+          if(bt.length){
+            const bm=bt[Math.floor(Math.random()*bt.length)];
+            const bidx=node.monsterGroup.indexOf(bm);
+            const b=Math.round(c.atk*1.5);
+            bm.hp-=b;
+            if(c.lifesteal>0) c.en.hp=Math.min(c.en.maxHp,c.en.hp+Math.round(b*c.lifesteal/100));
+            c.en.berserkCd=8;
+            if(ev) ev.hits.push({key:c.key,dmg:b,monsterIdx:bidx,nodeId});
+            if(!quiet) log(`⚡ ${c.nm} Berserk! +${b}`);
+          }
+        }
+      }
+    }
+  });
   node.monsterGroup.forEach(m=>{ if(m.hp<=0&&!m.rewarded){ m.rewarded=true; cs.forEach(c=>{ if(c.downed>0||c.hp<=0) return; gainXPFor(c.en,c.isP,z.monster.xp); c.en.mp=Math.min(c.en.maxMp||0,(c.en.mp||0)+mpKill(c)); }); const [lo,hi]=z.monster.gold; gainGold(lo+Math.random()*(hi-lo)); rollLoot(z.monster.loot,quiet); if(!quiet) log(`Defeated ${z.monster.name}!`); } });
   if(aliveMonsters().length===0){ if(ev) ev.monsterDied=true; if(!S.clearedZones[z.id]){ S.clearedZones[z.id]=true; onNodeCleared(z); } node.monsterGroup=[]; ensureMonsterGroupNode(nodeId,z); }
   else { const alive=cs.filter(c=>c.downed<=0&&c.hp>0); const af=alive.filter(c=>c.row==='front'); const tp=af.length?af:alive; if(tp.length){ aliveMonsters().forEach(()=>{ const t=tp[Math.floor(Math.random()*tp.length)]; const psAI = (S.player.prestigeShop&&S.player.prestigeShop.ps_ai); let md=Math.max(1,z.monster.atk-t.def); if(psAI && t.row==='back') md=Math.round(md*0.5); if(t.en.shield&&t.en.shield>0){ const ab=Math.min(t.en.shield,md); md-=ab; t.en.shield-=ab; } t.hp-=md; if(t.hp<=0){ t.hp=0; t.downed=3; if(!quiet) log(`${t.nm} downed!`); } if(ev) ev.monsterHits.push({key:t.key,dmg:md,nodeId}); }); } }
@@ -994,7 +1018,7 @@ if(!window._mapDragGlobalBound){ window._mapDragGlobalBound=true;
   window.addEventListener('touchend',()=>{ mapDragState.down=false; });
 }
 function updateMiniView(){
-  const wrap=document.getElementById('worldMapWrap'); const mv=document.getElementById('miniView'); if(!wrap||!mv) return;
+  const wrap=document.getElementById('worldMapWrap'); const mv=document.getElementById('miniView'); const arrow=document.getElementById('miniArrow'); if(!wrap||!mv) return;
   const f=S.currentFloor; const {minX,minY}=floorMapBounds(f);
   const cxF=(FLOOR_SIZE-1)/2, cyF=(FLOOR_SIZE-1)/2;
   const cx=wrap.scrollLeft+wrap.clientWidth/2, cy=wrap.scrollTop+wrap.clientHeight/2;
@@ -1003,6 +1027,16 @@ function updateMiniView(){
   const mx=size/2+(lx-cxF)*scale, my=size/2+(ly-cyF)*scale;
   const vw=wrap.clientWidth/MAP_CELL*scale, vh=wrap.clientHeight/MAP_CELL*scale;
   mv.style.left=Math.max(2,mx-vw/2)+'px'; mv.style.top=Math.max(2,my-vh/2)+'px'; mv.style.width=Math.max(4,vw)+'px'; mv.style.height=Math.max(4,vh)+'px';
+  if(arrow){
+    const [bx,by]=floorBossCoord(f);
+    const dx=bx-lx, dy=by-ly;
+    const angle=Math.atan2(dy,dx)*180/Math.PI;
+    const explored=Object.keys(S.clearedZones).filter(id=>id.startsWith('fz_'+f+'_')).length;
+    const pct=Math.min(1, explored/(FLOOR_SIZE*FLOOR_SIZE));
+    arrow.style.left=mx+'px'; arrow.style.top=my+'px';
+    arrow.style.opacity=0.25+0.75*pct;
+    arrow.style.transform=`rotate(${angle}deg) translate(${16+pct*12}px,0)`;
+  }
 }
 function renderMinimap(){
   const f=S.currentFloor; const [ex,ey]=floorEntry(f); const size=110;
@@ -1011,17 +1045,7 @@ function renderMinimap(){
   const dots=tiles.map(t=>{ const z=getZoneAt(t.floor,t.lx,t.ly); const un=isPlayableFloor(t.floor,t.lx,t.ly); const isCleared=!!S.clearedZones[z.id]; const color=isCleared?'var(--green)':(un?(z.regionColor||'var(--dim)'):'var(--dim)'); const p={x:size/2+(t.lx-cxF)*(size/2-10)/(FLOOR_SIZE/2), y:size/2+(t.ly-cyF)*(size/2-10)/(FLOOR_SIZE/2)}; return `<div class="miniDot ${isCleared?'cur':''}" style="left:${p.x}px;top:${p.y}px;background:${color};" title="${z.name}"></div>`; }).join('');
   const bMin=size/2-(size/2-10), bMax=size/2+(size/2-10);
   const boundary=`<div class="miniBoundary" style="left:${bMin}px;top:${bMin}px;width:${bMax-bMin}px;height:${bMax-bMin}px;"></div>`;
-  let arrow='';
-  const [bx,by]=floorBossCoord(f);
-  const dx=bx-ex, dy=by-ey;
-  const angle=Math.atan2(dy,dx)*180/Math.PI;
-  const explored=Object.keys(S.clearedZones).filter(id=>id.startsWith('fz_'+f+'_')).length;
-  const pct=Math.min(1, explored/(FLOOR_SIZE*FLOOR_SIZE));
-  let dispAngle=angle;
-  if(pct<0.6){ const jitter=(1-pct/0.6)*50; dispAngle=angle+(Math.random()*2-1)*jitter; }
-  const opacity=0.25+0.75*pct;
-  const len=16+pct*12;
-  arrow=`<div class="miniArrow" style="left:${size/2}px;top:${size/2}px;opacity:${opacity};transform:rotate(${dispAngle}deg) translate(${len}px,0);"></div>`;
+  const arrow=`<div class="miniArrow" id="miniArrow" style="left:${size/2}px;top:${size/2}px;opacity:0;"></div>`;
   const view=`<div class="miniView" id="miniView" style="left:10px;top:10px;width:10px;height:10px;"></div>`;
   return `<div class="minimap" id="minimap" title="Current floor — cleared (green) vs locked. Orange arrow = boss direction (sharpens as you explore). Dashed box = current viewport.">${boundary}${dots}${arrow}${view}</div>`;
 }
